@@ -64,6 +64,9 @@ private:
   // the stutter analysis will result in a better stutter model
   bool recalc_stutter_model_;
 
+  // only estimate stutter models without any genotyping
+  bool stutter_model_only_;
+  
   // Simple object to track total times consumed by various processes
   ProcessTimer process_timer_;
 
@@ -120,6 +123,7 @@ public:
     recalc_stutter_model_  = false;
     def_stutter_model_     = NULL;
     ref_vcf_               = NULL;
+    stutter_model_only_    = false;
   }
 
   ~GenotyperBamProcessor(){
@@ -148,6 +152,14 @@ public:
 
     // The motif length will vary for each locus, but we'll use 2 so that we can utilize the constructor
     def_stutter_model_ = new StutterModel(inframe_geom, inframe_up, inframe_down, outframe_geom, outframe_up, outframe_down, 2);
+  }
+
+  void set_recalc_stutter_model(){
+    recalc_stutter_model_ = true;
+  }
+
+  void set_stutter_model_only(){
+    stutter_model_only_ = true;
   }
 
   void set_output_viz(const std::string& viz_file){

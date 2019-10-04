@@ -63,8 +63,13 @@ class BamProcessor {
 
  bool quiet_, silent_;
  bool log_to_file_;
+ bool log_time_;
  NullOstream null_log_;
  std::ofstream log_;
+ std::ofstream time_log_;
+
+ // do not check the AS and AX tags (for 10X data)
+ bool ignore_asax_;
 
  std::set<std::string> sample_set_;
 
@@ -97,15 +102,19 @@ class BamProcessor {
    quiet_                   = false;
    silent_                  = false;
    log_to_file_             = false;
+   log_time_                = false;
    MAX_TOTAL_READS          = 1000000;
    BASE_QUAL_TRIM           = '5';
    TOO_MANY_READS           = false;
    bams_from_10x_           = false;
+   ignore_asax_             = false;
  }
 
  ~BamProcessor(){
    if (log_to_file_)
      log_.close();
+   if (time_log_)
+     time_log_.close();
  }
 
  double total_bam_seek_time()    { return total_bam_seek_time_;    }
@@ -136,6 +145,16 @@ class BamProcessor {
      printErrorAndDie("Failed to open the log file: " + log_file);
  }
 
+ void set_time_log_file(const std::string& time_log_file){
+    if (log_time_)
+     printErrorAndDie("Cannot reset the log file multiple times");
+    log_time_ = true;
+    time_log_.open(time_log_file, std::ofstream::out);
+    if (!time_log_.is_open())
+     printErrorAndDie("Failed to open the time_log file: " + time_log_file);
+    time_log_ << "chrom\tpos\tpos_end\tbam_seek_sec\tread_filter_sec\tsnp_phase_info_sec\tstutter_est_sec\tgenotyping_sec\n";
+ }
+
  inline std::ostream& full_logger(){
    return (silent_ ? null_log_ : (log_to_file_ ? log_ : std::cerr));
  }
@@ -144,10 +163,18 @@ class BamProcessor {
    return ((silent_ || quiet_) ? null_log_ : (log_to_file_ ? log_ : std::cerr));
  }
 
+  inline std::ostream& time_logger() {
+    return ((silent_ || quiet_) ? null_log_ : (log_time_ ? time_log_ : std::cerr));
+  }
+
  void set_sample_set(const std::string& sample_names){
    std::vector<std::string> sample_list;
    split_by_delim(sample_names, ',', sample_list);
    sample_set_ = std::set<std::string>(sample_list.begin(), sample_list.end());
+ }
+
+ void set_ignore_asax(){
+    ignore_asax_ = true;
  }
 
  static void add_passes_filters_tag(BamAlignment& aln, const std::string& passes);

@@ -122,7 +122,7 @@ void parse_command_line_args(int argc, char** argv,
 			     std::string& haploid_chr_string, std::string& hap_chr_file,      std::string& fasta_file,        std::string& region_file,   std::string& snp_vcf_file,
 			     std::string& chrom,              std::string& bam_pass_out_file, std::string& bam_filt_out_file, std::string& ref_vcf_file,
 			     std::string& str_vcf_out_file,   std::string& fam_file,          std::string& log_file,
-			     int& bam_lib_from_samp, int& skip_genotyping, GenotyperBamProcessor& bam_processor){
+			     int& bam_lib_from_samp, int& skip_genotyping, int& recalc_stutter_model, int& stutter_model_only, int& ignore_asax, GenotyperBamProcessor& bam_processor){
   int def_mdist             = bam_processor.MAX_MATE_DIST;
   int def_min_reads         = bam_processor.MIN_TOTAL_READS;
   int def_max_reads         = bam_processor.MAX_TOTAL_READS;
@@ -167,6 +167,7 @@ void parse_command_line_args(int argc, char** argv,
     {"max-str-len",     required_argument, 0, 'x'},
     {"filt-bam",        required_argument, 0, 'y'},
     {"viz-out",         required_argument, 0, 'z'},
+    {"time-log",        required_argument, 0, 'Z'}, // new
     {"10x-bams",           no_argument, &bams_from_10x, 1},
     {"h",                  no_argument, &print_help, 1},
     {"help",               no_argument, &print_help, 1},
@@ -186,13 +187,16 @@ void parse_command_line_args(int argc, char** argv,
     {"quiet",              no_argument, &quiet_log, 1},
     {"silent",             no_argument, &silent_log, 1},
     {"skip-genotyping",    no_argument, &skip_genotyping, 1},
+    {"stutter-model-only", no_argument, &stutter_model_only, 1}, // new
+    {"recalc-stutter-model", no_argument, &recalc_stutter_model, 1}, // new
+    {"ignore-asxs",        no_argument, &ignore_asax, 1}, // new
     {0, 0, 0, 0}
   };
 
   std::string filename;
   while (true){
     int option_index = 0;
-    int c = getopt_long(argc, argv, "b:B:c:d:D:e:f:F:g:G:i:I:j:k:l:m:n:o:p:q:r:s:S:t:u:v:w:x:y:z:", long_options, &option_index);
+    int c = getopt_long(argc, argv, "b:B:c:d:D:e:f:F:g:G:i:I:j:k:l:m:n:o:p:q:r:s:S:t:u:v:w:x:y:z:Z:", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -304,6 +308,10 @@ void parse_command_line_args(int argc, char** argv,
 	printErrorAndDie("Path for alignment visualization file must end in .gz as it will be bgzipped");
       bam_processor.set_output_viz(filename);
       break;
+    case 'Z':
+      filename = std::string(optarg);
+      bam_processor.set_time_log_file(filename);
+      break;
     case 'F':
       Genotyper::MAX_FLANK_INDEL_FRAC = atof(optarg);
       break;
@@ -357,14 +365,24 @@ int main(int argc, char** argv){
 
   GenotyperBamProcessor bam_processor(true, true);
 
-  int bam_lib_from_samp = 0, skip_genotyping = 0;
+  int bam_lib_from_samp = 0, skip_genotyping = 0, recalc_stutter_model  = 0, stutter_model_only = 0, ignore_asax = 0;
   std::string bamfile_string="", bamlist_string="", rg_sample_string="", rg_lib_string="", hap_chr_string="", hap_chr_file="";
   std::string region_file="", fasta_file="", chrom="", snp_vcf_file="";
   std::string bam_pass_out_file="", bam_filt_out_file="", str_vcf_out_file="", fam_file = "", log_file = "", ref_vcf_file="";
 
   parse_command_line_args(argc, argv,
 			  bamfile_string, bamlist_string, rg_sample_string, rg_lib_string, hap_chr_string, hap_chr_file, fasta_file, region_file, snp_vcf_file,
-			  chrom, bam_pass_out_file, bam_filt_out_file, ref_vcf_file, str_vcf_out_file, fam_file, log_file, bam_lib_from_samp, skip_genotyping, bam_processor);
+			  chrom, bam_pass_out_file, bam_filt_out_file, ref_vcf_file, str_vcf_out_file, fam_file, log_file, bam_lib_from_samp, 
+        skip_genotyping, recalc_stutter_model, stutter_model_only, ignore_asax, bam_processor);
+
+  if (recalc_stutter_model)
+    bam_processor.set_recalc_stutter_model();
+
+  if (stutter_model_only)
+    bam_processor.set_stutter_model_only();
+
+  if (ignore_asax)
+    bam_processor.set_ignore_asax();
 
   if (!log_file.empty())
     bam_processor.set_log(log_file);

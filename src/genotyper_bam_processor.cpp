@@ -199,10 +199,10 @@ void GenotyperBamProcessor::analyze_reads_and_phasing(std::vector<BamAlnList>& a
       // Attempt to extact model from dictionary
       auto model_iter = stutter_models_.find(*region_iter);
       if (model_iter != stutter_models_.end())
-	stutter_model = model_iter->second->copy();
+  stutter_model = model_iter->second->copy();
       else {
-	full_logger() << "WARNING: No stutter model found for " << region_iter->chrom() << ":" << region_iter->start() << "-" << region_iter->stop() << std::endl;
-	num_missing_models_++;
+  full_logger() << "WARNING: No stutter model found for " << region_iter->chrom() << ":" << region_iter->start() << "-" << region_iter->stop() << std::endl;
+  num_missing_models_++;
       }
     }
     else {
@@ -222,29 +222,34 @@ void GenotyperBamProcessor::analyze_reads_and_phasing(std::vector<BamAlnList>& a
     std::vector<Alignment> left_alignments;
     std::vector< std::vector<double> > filt_log_p1s, filt_log_p2s;
     left_align_reads(region_group, chrom_seq, alignments, log_p1s, log_p2s, filt_log_p1s,
-		     filt_log_p2s, left_alignments);
+        filt_log_p2s, left_alignments);
 
     bool run_assembly = (REQUIRE_SPANNING == 0);
     seq_genotyper = new SeqStutterGenotyper(region_group, haploid, run_assembly, left_alignments, filt_log_p1s, filt_log_p2s, rg_names, chrom_seq,
-					    stutter_models, ref_vcf_, selective_logger());
+              stutter_models, ref_vcf_, selective_logger());
 
-    if (seq_genotyper->genotype(MAX_TOTAL_HAPLOTYPES, MAX_FLANK_HAPLOTYPES, MIN_FLANK_FREQ, selective_logger())) {
-      bool pass = true;
+    // skip genotyping if we only want the stutter
+    if (stutter_model_only_) {
+      // do nothing
+    } else {
+      if (seq_genotyper->genotype(MAX_TOTAL_HAPLOTYPES, MAX_FLANK_HAPLOTYPES, MIN_FLANK_FREQ, selective_logger())) {
+        bool pass = true;
 
-      // If appropriate, recalculate the stutter model using the haplotype ML alignments,
-      // realign the reads and regenotype the samples
-      if (recalc_stutter_model_)
-	pass = seq_genotyper->recompute_stutter_models(selective_logger(), MAX_TOTAL_HAPLOTYPES, MAX_FLANK_HAPLOTYPES, MIN_FLANK_FREQ, MAX_EM_ITER, ABS_LL_CONVERGE, FRAC_LL_CONVERGE);
+        // If appropriate, recalculate the stutter model using the haplotype ML alignments,
+        // realign the reads and regenotype the samples
+        if (recalc_stutter_model_)
+          pass = seq_genotyper->recompute_stutter_models(selective_logger(), MAX_TOTAL_HAPLOTYPES, MAX_FLANK_HAPLOTYPES, MIN_FLANK_FREQ, MAX_EM_ITER, ABS_LL_CONVERGE, FRAC_LL_CONVERGE);
 
-      if (pass){
-	num_genotype_success_++;
-	seq_genotyper->write_vcf_record(samples_to_genotype_, chrom_seq, output_viz_, (VIZ_LEFT_ALNS == 1), viz_out_, &vcf_writer_, selective_logger());
+        if (pass){
+          num_genotype_success_++;
+          seq_genotyper->write_vcf_record(samples_to_genotype_, chrom_seq, output_viz_, (VIZ_LEFT_ALNS == 1), viz_out_, &vcf_writer_, selective_logger());
+        } else {
+          num_genotype_fail_++;
+        }
+      } else {
+        num_genotype_fail_++;
       }
-      else
-	num_genotype_fail_++;
     }
-    else
-      num_genotype_fail_++;
   }
   locus_genotype_time_  = (clock() - locus_genotype_time_)/CLOCKS_PER_SEC;
   total_genotype_time_ += locus_genotype_time_;
@@ -254,9 +259,19 @@ void GenotyperBamProcessor::analyze_reads_and_phasing(std::vector<BamAlnList>& a
 		     << " Read filtering      = " << locus_read_filter_time()    << " seconds\n"
 		     << " SNP info extraction = " << locus_snp_phase_info_time() << " seconds\n"
 		     << " Stutter estimation  = " << locus_stutter_time()        << " seconds\n";
+
+  time_logger() << region_group.chrom() << "\t"
+                << region_group.start() << "\t" 
+                << region_group.stop() << "\t" 
+                << locus_bam_seek_time() << "\t" 
+                << locus_read_filter_time() << "\t" 
+                << locus_snp_phase_info_time() << "\t" 
+                <<  locus_stutter_time() << "\t" 
+                <<  locus_genotype_time() << "\n";
+
   if (stutter_success && vcf_writer_.is_open()){
     selective_logger() << " Genotyping          = " << locus_genotype_time()       << " seconds\n";
-    if (vcf_writer_.is_open()){
+    if (vcf_writer_.is_open() && !stutter_model_only_){
       assert(seq_genotyper != NULL);
       selective_logger() << "\t" << " Left alignment        = "  << locus_left_aln_time_             << " seconds\n"
 			 << "\t" << " Haplotype generation  = "  << seq_genotyper->hap_build_time()  << " seconds\n"

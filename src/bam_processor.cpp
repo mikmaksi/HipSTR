@@ -107,22 +107,24 @@ void BamProcessor::get_valid_pairings(BamAlignment& aln_1, BamAlignment& aln_2,
   //     Otherwise, the mate mapping information is not informative and we discard the pair of reads.
   // ii) If the mate pair has an XA tag but the read has no XA tag, we require that the read has a decent alignment score relative to its best alternate score.
   //     Otherwise, even with an informative mate, there may be other equally valid alignments for the read
-  if (!aln_2.HasTag(ALT_MAP_TAG.c_str())){
-    if (aln_2.HasTag(PRIMARY_ALN_SCORE_TAG.c_str()) && aln_2.HasTag(SUBOPT_ALN_SCORE_TAG.c_str())){
-      int64_t mate_primary_score, mate_subopt_score;
-      if(!aln_2.GetIntTag(PRIMARY_ALN_SCORE_TAG.c_str(), mate_primary_score)) printErrorAndDie("Failed to extract the primary alignment score from the BAM record");
-      if(!aln_2.GetIntTag(SUBOPT_ALN_SCORE_TAG.c_str(),  mate_subopt_score))  printErrorAndDie("Failed to extract the suboptimal alignment score from the BAM record");
-      if (mate_primary_score - mate_subopt_score < 10)
-	return;
+  if (!ignore_asax_) {
+    if (!aln_2.HasTag(ALT_MAP_TAG.c_str())){
+      if (aln_2.HasTag(PRIMARY_ALN_SCORE_TAG.c_str()) && aln_2.HasTag(SUBOPT_ALN_SCORE_TAG.c_str())){
+        int64_t mate_primary_score, mate_subopt_score;
+        if(!aln_2.GetIntTag(PRIMARY_ALN_SCORE_TAG.c_str(), mate_primary_score)) printErrorAndDie("Failed to extract the primary alignment score from the BAM record");
+        if(!aln_2.GetIntTag(SUBOPT_ALN_SCORE_TAG.c_str(),  mate_subopt_score))  printErrorAndDie("Failed to extract the suboptimal alignment score from the BAM record");
+        if (mate_primary_score - mate_subopt_score < 10)
+    return;
+      }
     }
-  }
-  else if (!aln_1.HasTag(ALT_MAP_TAG.c_str())){
-    if (aln_1.HasTag(PRIMARY_ALN_SCORE_TAG.c_str()) && aln_1.HasTag(SUBOPT_ALN_SCORE_TAG.c_str())){
-      int64_t primary_score, subopt_score;
-      if(!aln_1.GetIntTag(PRIMARY_ALN_SCORE_TAG.c_str(), primary_score))      printErrorAndDie("Failed to extract the primary alignment score from the BAM record");
-      if(!aln_1.GetIntTag(SUBOPT_ALN_SCORE_TAG.c_str(),  subopt_score))       printErrorAndDie("Failed to extract the suboptimal alignment score from the BAM record");
-      if (primary_score - subopt_score < 10)
-	return;
+    else if (!aln_1.HasTag(ALT_MAP_TAG.c_str())){
+      if (aln_1.HasTag(PRIMARY_ALN_SCORE_TAG.c_str()) && aln_1.HasTag(SUBOPT_ALN_SCORE_TAG.c_str())){
+        int64_t primary_score, subopt_score;
+        if(!aln_1.GetIntTag(PRIMARY_ALN_SCORE_TAG.c_str(), primary_score))      printErrorAndDie("Failed to extract the primary alignment score from the BAM record");
+        if(!aln_1.GetIntTag(SUBOPT_ALN_SCORE_TAG.c_str(),  subopt_score))       printErrorAndDie("Failed to extract the suboptimal alignment score from the BAM record");
+        if (primary_score - subopt_score < 10)
+    return;
+      }
     }
   }
 
@@ -507,7 +509,6 @@ void BamProcessor::verify_chromosomes(const std::vector<std::string>& chroms, co
       // Abort execution
       printErrorAndDie("Terminating HipSTR as chromosomes in the region file are missing from the FASTA file. Please see the log for details");
     }
-
     // 2. Check BAMs
     if (bam_header->ref_id(chrom) == -1){
       std::stringstream err_msg;
@@ -551,7 +552,7 @@ void BamProcessor::process_regions(BamCramMultiReader& reader, const std::string
   }
 
   // Ensure consistent chromosome naming between the relevant input files
-  verify_chromosomes(chroms, bam_header, fasta_reader);
+  verify_chromosomes(chroms, bam_header, fasta_reader); 
 
   // Add the chromosome information to the VCF
   init_output_vcf(fasta_file, chroms, full_command);
